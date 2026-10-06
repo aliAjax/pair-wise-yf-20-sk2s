@@ -1,128 +1,106 @@
+import { useEffect, useState } from "react";
 import "./styles.css";
+import { ShowStoreProvider, useShowStore } from "./state/store";
+import { Timeline, type Selection } from "./components/Timeline";
+import { SitePlan } from "./components/SitePlan";
+import { SegmentEditor, ConflictModal } from "./components/SegmentEditor";
+import { ModulePanel, ConflictPanel, TypeList } from "./components/Panels";
+import { PreviewPlayer } from "./components/PreviewPlayer";
 
-const project = {
-  "sourceNo": 10,
-  "id": "hxyfront-62008",
-  "port": 62008,
-  "title": "烟花燃放脚本编排",
-  "domain": "烟花燃放编排",
-  "prompt": "我想做一个面向烟花燃放编排师的燃放脚本前端工具，可以记录节目段落、烟花型号、口径、发射角度、点火时间、持续时间、安全距离和音乐时间点。页面需要有时间轴编排、燃放点位平面图、型号清单、冲突时间提示和整场节目预览。",
-  "palette": [
-    "#1d4ed8",
-    "#dc2626",
-    "#f59e0b"
-  ],
-  "metrics": [
-    "节目段落",
-    "点火节点",
-    "冲突提示",
-    "安全距离"
-  ],
-  "filters": [
-    "礼花弹",
-    "罗马烛光",
-    "扇形架",
-    "冷焰火"
-  ],
-  "fields": [
-    "节目段落",
-    "烟花型号",
-    "口径",
-    "发射角度",
-    "点火时间",
-    "安全距离"
-  ],
-  "records": [
-    [
-      "Intro",
-      "30mm扇形架",
-      "00:12.500",
-      "安全距离35m"
-    ],
-    [
-      "Chorus A",
-      "75mm礼花弹",
-      "01:08.200",
-      "与B点位间隔正常"
-    ],
-    [
-      "Finale",
-      "冷焰火",
-      "03:42.000",
-      "近景区待确认"
-    ]
-  ]
-};
+const USERS = ["编导甲", "编导乙"];
 
-function App() {
+function Header() {
+  const { state, dispatch } = useShowStore();
   return (
-    <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
-
-      <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[86, 14, 7, 32][index] ?? 12}</strong>
-          </article>
-        ))}
-      </section>
-
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}筛选</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
-
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存草稿</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      <section className="panel">
-        <div className="heading">
-          <div>
-            <p>历史记录</p>
-            <h2>近期工作台</h2>
-          </div>
-          <button>导出摘要</button>
-        </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
+    <header className="app-header">
+      <div>
+        <p className="eyebrow">hxyfront-62008 · 烟花燃放编排</p>
+        <h1>烟花燃放脚本编排</h1>
+      </div>
+      <div className="header-actions">
+        <div className="user-switch" role="group" aria-label="当前编导">
+          {USERS.map((u) => (
+            <button
+              key={u}
+              className={state.currentUser === u ? "user active" : "user"}
+              onClick={() => dispatch({ type: "setUser", user: u })}
+            >
+              {u}
+            </button>
           ))}
         </div>
-      </section>
+        <button onClick={() => dispatch({ type: "resetShow" })}>重置数据</button>
+      </div>
+    </header>
+  );
+}
+
+function Metrics() {
+  const { state } = useShowStore();
+  const { show, schedule } = state;
+  const remaining = show.modules
+    .filter((m) => m.online)
+    .reduce((sum, m) => sum + Math.max(0, m.capacity - (schedule.moduleUsage.get(m.id) ?? 0)), 0);
+  const cards = [
+    { label: "节目段落", value: show.segments.length },
+    { label: "点火节点", value: show.nodes.length },
+    { label: "冲突提示", value: schedule.conflicts.length, bad: schedule.conflicts.length > 0 },
+    { label: "模块余量", value: remaining },
+  ];
+  return (
+    <section className="metrics">
+      {cards.map((c) => (
+        <article key={c.label} className={c.bad ? "metric bad" : "metric"}>
+          <small>{c.label}</small>
+          <strong>{c.value}</strong>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function Notice() {
+  const { state, dispatch } = useShowStore();
+  useEffect(() => {
+    if (!state.notice) return;
+    const t = setTimeout(() => dispatch({ type: "clearNotice" }), 5000);
+    return () => clearTimeout(t);
+  }, [state.notice, dispatch]);
+  if (!state.notice) return null;
+  return <div className="toast">{state.notice}</div>;
+}
+
+function Shell() {
+  const [selection, setSelection] = useState<Selection>(null);
+  return (
+    <main className="app">
+      <Header />
+      <Metrics />
+      <div className="layout">
+        <div className="main-col">
+          <Timeline selection={selection} onSelect={setSelection} />
+          <div className="split-row">
+            <SitePlan selection={selection} />
+            <PreviewPlayer />
+          </div>
+        </div>
+        <aside className="side-col">
+          <SegmentEditor />
+          <ModulePanel />
+          <ConflictPanel />
+          <TypeList />
+        </aside>
+      </div>
+      <ConflictModal />
+      <Notice />
     </main>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ShowStoreProvider>
+      <Shell />
+    </ShowStoreProvider>
+  );
+}

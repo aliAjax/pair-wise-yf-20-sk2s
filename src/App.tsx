@@ -1,128 +1,91 @@
+import { AppProvider, useApp } from "./state/AppContext";
+import EditorBar from "./components/EditorBar";
+import ModulePanel from "./components/ModulePanel";
+import Timeline from "./components/Timeline";
+import FloorPlan from "./components/FloorPlan";
+import ConflictPanel from "./components/ConflictPanel";
+import Preview from "./components/Preview";
+import TypeList from "./components/TypeList";
+import NodePanel from "./components/NodePanel";
+import LogPanel from "./components/LogPanel";
+import SaveDialog from "./components/SaveDialog";
 import "./styles.css";
 
-const project = {
-  "sourceNo": 10,
-  "id": "hxyfront-62008",
-  "port": 62008,
-  "title": "烟花燃放脚本编排",
-  "domain": "烟花燃放编排",
-  "prompt": "我想做一个面向烟花燃放编排师的燃放脚本前端工具，可以记录节目段落、烟花型号、口径、发射角度、点火时间、持续时间、安全距离和音乐时间点。页面需要有时间轴编排、燃放点位平面图、型号清单、冲突时间提示和整场节目预览。",
-  "palette": [
-    "#1d4ed8",
-    "#dc2626",
-    "#f59e0b"
-  ],
-  "metrics": [
-    "节目段落",
-    "点火节点",
-    "冲突提示",
-    "安全距离"
-  ],
-  "filters": [
-    "礼花弹",
-    "罗马烛光",
-    "扇形架",
-    "冷焰火"
-  ],
-  "fields": [
-    "节目段落",
-    "烟花型号",
-    "口径",
-    "发射角度",
-    "点火时间",
-    "安全距离"
-  ],
-  "records": [
-    [
-      "Intro",
-      "30mm扇形架",
-      "00:12.500",
-      "安全距离35m"
-    ],
-    [
-      "Chorus A",
-      "75mm礼花弹",
-      "01:08.200",
-      "与B点位间隔正常"
-    ],
-    [
-      "Finale",
-      "冷焰火",
-      "03:42.000",
-      "近景区待确认"
-    ]
-  ]
-};
+function StatsBar() {
+  const { state } = useApp();
+  const { segments, nodes, conflicts, modules } = state;
+  const queued = nodes.filter((n) => n.queued).length;
+  const delayed = nodes.filter((n) => n.delay > 0).length;
+  const pinned = nodes.filter((n) => n.pinned).length;
+  const online = modules.filter((m) => m.online).length;
 
-function App() {
+  const stats = [
+    { label: "节目段落", value: segments.length },
+    { label: "点火节点", value: nodes.length },
+    { label: "在线模块", value: `${online}/${modules.length}` },
+    { label: "排队节点", value: queued },
+    { label: "顺延节点", value: delayed },
+    { label: "钉住节点", value: pinned },
+    { label: "冲突提示", value: conflicts.length },
+  ];
+
+  return (
+    <section className="stats-bar">
+      {stats.map((s) => (
+        <article key={s.label}>
+          <small>{s.label}</small>
+          <strong>{s.value}</strong>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function Workspace() {
   return (
     <main className="app">
-      <section className="hero">
-        <p>{project.id} · 源提示词{project.sourceNo} · Port {project.port}</p>
-        <h1>{project.title}</h1>
-        <span>{project.prompt}</span>
-      </section>
+      <header className="hero">
+        <p>hxyfront-62008 · 烟花燃放编排</p>
+        <h1>烟花燃放脚本编排</h1>
+        <span>
+          改一处牵动全场：段落音乐时间点变更，点火节点重算时间，手工钉住的节点留在原处。
+          模块容量有限，排不下的节点排队等下一台；两次点火挨得太近顺延。模块掉线按余量重排，
+          重排失败按原节点重试。两名编导师同时保存同一段落，先落的留下，晚到的列出差异。
+        </span>
+      </header>
 
-      <section className="metrics">
-        {project.metrics.map((metric: string, index: number) => (
-          <article key={metric}>
-            <small>{metric}</small>
-            <strong>{[86, 14, 7, 32][index] ?? 12}</strong>
-          </article>
-        ))}
-      </section>
+      <StatsBar />
 
-      <section className="workspace">
-        <aside className="panel">
-          <h2>{project.domain}筛选</h2>
-          <div className="chips">
-            {project.filters.map((item: string) => (
-              <button key={item}>{item}</button>
-            ))}
-          </div>
-        </aside>
+      <div className="grid grid-top">
+        <EditorBar />
+        <ModulePanel />
+      </div>
 
-        <section className="panel form-panel">
-          <div className="heading">
-            <div>
-              <p>专业字段</p>
-              <h2>新增记录</h2>
-            </div>
-            <button className="primary">保存草稿</button>
-          </div>
-          <div className="field-grid">
-            {project.fields.map((field: string) => (
-              <label key={field}>
-                <span>{field}</span>
-                <input placeholder={"填写" + field} />
-              </label>
-            ))}
-          </div>
-        </section>
-      </section>
+      <Timeline />
 
-      <section className="panel">
-        <div className="heading">
-          <div>
-            <p>历史记录</p>
-            <h2>近期工作台</h2>
-          </div>
-          <button>导出摘要</button>
-        </div>
-        <div className="records">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      <div className="grid grid-mid">
+        <FloorPlan />
+        <ConflictPanel />
+      </div>
+
+      <Preview />
+
+      <div className="grid grid-bot">
+        <TypeList />
+        <NodePanel />
+      </div>
+
+      <LogPanel />
+
+      <SaveDialog />
     </main>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AppProvider>
+      <Workspace />
+    </AppProvider>
+  );
+}
